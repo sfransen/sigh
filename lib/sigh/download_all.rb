@@ -2,28 +2,35 @@ module Sigh
   class DownloadAll
     # Download all valid provisioning profiles
     def download_all
-      Helper.log.info "Starting login with user '#{Sigh.config[:username]}'"
+      UI.message "Starting login with user '#{Sigh.config[:username]}'"
       Spaceship.login(Sigh.config[:username], nil)
       Spaceship.select_team
-      Helper.log.info "Successfully logged in"
+      UI.message "Successfully logged in"
 
       Spaceship.provisioning_profile.all.each do |profile|
         if profile.valid?
-          Helper.log.info "Downloading profile '#{profile.name}'...".green
+          UI.message "Downloading profile '#{profile.name}'..."
           download_profile(profile)
         else
-          Helper.log.info "Skipping invalid/expired profile '#{profile.name}'".yellow
+          UI.important "skip this Invalid Provison Profile invalid/expired profile '#{profile.name}'"
+          ##profile.repair!
+          ##download_profile(profile)
         end
       end
     end
 
     def download_profile(profile)
-      output = Sigh.config[:output_path] || "/tmp"
+      FileUtils.mkdir_p(Sigh.config[:output_path])
+      #profile_name = "#{profile.class.pretty_type}_#{profile.app.bundle_id}.mobileprovision" # default name
 
-      #profile_name = "#{profile.class.pretty_type}_#{profile.app.bundle_id}.mobileprovision" # Terrible name
-      profile_name = "#{profile.name}.mobileprovision" # default name    real name of provison Profile
-
-      output_path = File.join(output, profile_name)
+      # Push the changes back to the Apple Developer Portal
+         if profile.class.pretty_type != "AppStore"
+            profile.devices = Spaceship.device.all
+            profile.update!
+         end
+      profile_name = "#{profile.name}.mobileprovision"
+      goodname = profile_name.gsub(" ", "_")
+      output_path = File.join(Sigh.config[:output_path], goodname)
       File.open(output_path, "wb") do |f|
         f.write(profile.download)
       end
